@@ -355,3 +355,16 @@ task :list do
   puts "Tasks: #{(Rake::Task.tasks - [Rake::Task[:list]]).join(', ')}"
   puts "(type rake -T for more detail)\n\n"
 end
+
+s3_bucket      = "tale.wkb.ug"
+s3_delete      = false
+
+desc "Deploy website to s3"
+task :s3 do
+  exclude = ""
+  if File.exists?('./s3-exclude')
+    exclude = "--exclude-from '#{File.expand_path('./s3-exclude')}'"
+  end
+  puts "## Deploying website via s3cmd"
+  ok_failed system("s3cmd sync --guess-mime-type --acl-public #{exclude} #{"--delete-removed" unless s3_delete == false} #{public_dir}/ s3://#{s3_bucket}/")
+end
