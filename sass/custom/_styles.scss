@@ -1,2 +1,37 @@
 // This File is imported last, and will override other styles in the cascade
 // Add styles here to make changes without digging in too much
+
+$header-image-height: 260px;
+$header-padding-top: 100px;
+
+body > header h1 a:link,
+body > header h1 a:visited,
+body > header h1 a:hover, {
+  font-family: 'Overlock', Verdana;
+  font-weight: bold;
+  color: black;
+}
+
+body > header {
+     background-image: url(/images/head-bg-latte.jpg);
+     height: $header-image-height - $header-padding-top;
+     padding-top: $header-padding-top;
+     padding-bottom: 0em;
+}
+
+html {
+  background-color: $page-bg;
+  background-image: transparent;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover, a:active {
+  text-decoration: underline;
+}
+
+.disclaimer {
+
+}

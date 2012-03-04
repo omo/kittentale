@@ -41,3 +41,15 @@
 //$pre-bg: $base03;
 //$pre-border: darken($base02, 5);
 //$pre-color: $base1;
+
+$page-bg: #cba;
+$main-bg: white;
+$link-color: #168;
+$link-color-visited: adjust-color($link-color, $hue: 80, $lightness: -4);
+
+$nav-bg: white;
+$nav-bg-front: image-url('noise.png');
+$nav-bg-back: white;
+$footer-bg: white;
+$footer-bg-front: image-url('noise.png');
+$footer-bg-back: white;
