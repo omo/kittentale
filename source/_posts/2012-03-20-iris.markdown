@@ -1,0 +1,138 @@
+---
+layout: post
+title: "Isis - Browser inside Browser"
+date: 2012-03-20 13:17
+comments: true
+categories: 
+---
+
+A month ago HP unveiled [Isis Browser](http://isis-project.org/).
+The browser was originally built for their WebOS.
+But porting for Linux [looks ongoing](https://github.com/isis-project/isis-browser/wiki/Build-Isis-Browser-on-Linux)
+so we'll be able to try it in near future.
+
+Because the project chooses QtWebKit as its rendering engine, I think some Kitten may have an interest.
+Actually the browser is making some interesting design decision, which is worth covering here.
+
+HTML as Browser UI
+-----------------------
+
+You must have heard about Gecko, the rendering engine of Firefox.
+Gecko invented an HTML-like XML vocabulary called [XUL](https://developer.mozilla.org/en/XUL) for building its whole UI.
+Not only Firefox but also most of Mozilla originated desktop products are built on top of
+XUL.
+
+Gecko (including XUL) by itself is a platform for running desktop
+applications. This approach is totally different from WebKit-based browsers, which generally employ OS-native toolkits.
+For example, Safari is using Cocoa and Windows Chromium is using Win32.
+WebKit is just an HTML renderer for these browsers, even though that is a significant construct.
+
+However, Isis browser — which is also based on WebKit — chooses another approach: 
+Building its UI using HTML. It's kinda like XUL, but without any custom-made markup vocabulary.
+
+This approach explains why they claim that Isis is based on [Enyo](http://enyojs.com/) JavaScript framework. 
+Isis uses Enyo as primary HTML-backed GUI library.
+You can see [Isis Browser codebase](https://github.com/isis-project/isis-browser/) containing no C++ code, but having a bunch of JavaScript instead.
+
+BrowserAdaptor and BrowserServer
+----------------------------------
+
+Then the question is how it gets stuff work. How can we navigate web sites inside HTML?
+Are they use `<iframe>`? It might be possible. But  it won't be sweet
+because WebKit doesn't support any process isolation for
+`<iframe>`, which is one of the essential requirements of modern browsers.
+
+And here an interesting idea arrives: Isis addresses this requirement by 
+implementing a browser plugin, *which renders HTML using WebKit*! 
+
+They call it [BrowserAdaptor](https://github.com/isis-project/BrowserAdapter).
+BrowserAdaptor is a plugin, which accepts NPAPI to run inside WebKit. But it can render HTML by itself, using (again) WebKit.
+With this plugin, Isis can render its UI in the topmost WebKit, while rendering navigating Web pages through WebKit inside BrowserAdaptor.
+
+![fig](https://lh3.googleusercontent.com/-5IrWs9qoXI4/T2hEbu94NrI/AAAAAAAAEaw/0BMzGmLflY4/s800/P1010334.JPG)
+
+The plugin browser supports process isolation. 
+This process-isolated renderer is called [BrowserServer](https://github.com/isis-project/BrowserServer).
+It's hosted in a separate git repo. BrowserAdaptor delegates page rendering to BrowserServer.
+
+"Process isolated WebKit!" You kitten might get excited and ask, "So do they adopt WebKit2?"
+No. They don't. They have their own IPC mechanism, their own serializer, code generator and their own lifecycle model.
+
+Talking about lifecyle, BrowserServer is more like "real" server than `WebProcess` of WebKit2 or `renderer` of Chromium.
+It is designed for running as a linux daemon. It has a boot script for [Upstart](http://upstart.ubuntu.com/). 
+Its diagnose message goes through `syslog`. Its resource is managed under [cgroups](http://en.wikipedia.org/wiki/Cgroups).
+This design might make it hard to port Isis to non-Linux platforms. 
+It could be a affordable price though, if it can fully utilize Linux kernel ability.
+
+What clear is that Isis is taking a step into a frontier no other Kitten has explored, where the boundary between UI and page is blurring.
+Honestly I thought that such approach is possible only with platformish architecture like Gecko or WPF.
+But Isis demonstrates it being possible even for librarish WebKittens, if you hole the page somehow.
+
+B2G
+------
+
+Coincidentally, [B2G](https://wiki.mozilla.org/B2G) — a Gecko-based mobile platform developed by Mozilla — is following a similar path as Isis:
+They are building mobile applications using HTML. Their built-in applications include phonecall, address book and Web browser. 
+Yes, B2G is building its Web browser on top of HTML!
+They don't use XUL for [some reason](https://groups.google.com/d/msg/mozilla.dev.platform/awwXSGEyyfY/pCZRAY7g08UJ).
+
+Then same question arises. That is, how do they achieve process isolation?
+Implementing Gecko plugin? Or they just give it up and use `<iframe>`?
+
+Neither. They use `<iframe>` *and* they have process isolation.
+As a part of their [Electrolysis](https://wiki.mozilla.org/Electrolysis) effort, 
+they've [implemented](https://wiki.mozilla.org/Electrolysis/BrowserBinding) process isolation mechanism for `<browser>` element in XUL.
+Basically, it's `<iframe>` for XUL. But once you give `@remote` attribute to it, Gecko creates a dedicated process for the element to render its content.
+I can imagine that it was a tough work. But that is Mozilla. Their hardcore hackers managed to do it. 
+Even though they are [suspending the effort](http://lawrencemandel.com/2011/11/15/update-on-multi-process-firefox-electrolysis-development/)
+for reasons, they finished underlying plumbing.
+
+And this time, they bring it to `<iframe>`. 
+[A discussion](https://bugzilla.mozilla.org/show_bug.cgi?id=714861)
+explains that each `<iframe>` with special `@mozbrowser` attribute is going to have dedicated process.
+The role of mozbrowser-ed iframe is almost same as Isis's BrowserAdaptor plugin.
+But it comes with more Web-looking face.
+
+Fullscreen Rescues
+-------------------------
+
+I'm wondering why these two mobile platforms adopt HTML as their GUI toolkit, regardless no desktop browser has done it.
+Is it really coincidence? 
+
+My humble guess is that's because desktop applications need windows, chromes or frames, 
+and lack of ability to control it from HTML prevented that choice.
+For each web page, its windows is given by the browser. And every modern browser does hard work to create unique looking, slick feeling frames. 
+Only few browser adopt platform's default frames.
+
+Mobile is different. Basically every application runs fullscreen. That means it doesn't need any cool frames, 
+and that's why tools like [PhoneGap](http://phonegap.com/) are welcomed.
+Isis and B2G are also in same party; They live in the fullscreen world where cutting-edge HTML shines.
+
+Of course, there must have been more general lack of ability other than frame stuff. HTML didn't have `flexbox` for example.
+So its overall improvement would've also helped to revert the dated decision.
+
+
+Browsers Only?
+-------------------------
+
+By the way, is the out-of-process `<iframe>` or plugin browser applicable only for building browsers? I don't think so.
+Any web page which is mashing up widgets using `<iframe>` possibly could take advantage of it.
+It is true that `<iframe>` is adopted broadly. But that doesn't mean there is no shortcoming of that. 
+In reality, it's slow, it drains memory and its isolation wall is fragile.
+This is because `<iframe>` shares many structure with its host page.
+
+If it lives in a separate process, this situation will drastically change. 
+Each host page will be no longer hurt by its rogue embedees anymore because their rendering will happen in separate processes. 
+They don't block its parent rendering. Memory will be easily reclaimed for each of them closed.
+You no longer need to worry about memory leaks nor crashes of child frames.
+
+With out-of-process iframe, mashup ability of browsers will advance to the next level.
+I hope someday it gets standardized and becomes available not only for Web "browser" developers, but also (non-browser) Web developers.
+It will be tough job to implement it in WebKit. but wizard kittens will make it happen if people want.
+
+
+----
+
+P.S. My friends who loves Microsoft stack told me that it was called [OLE](http://en.wikipedia.org/wiki/Object_Linking_and_Embedding) in their world
+and it supported both out-of-process hosting and IPC. Well, there are always something worth learning from ancient literature.
+Agreed ... and [ordered](http://www.amazon.com/Inside-Microsoft-Programming-Kraig-Brockschmidt/dp/1556158432).
